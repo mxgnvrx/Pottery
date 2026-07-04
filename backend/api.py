@@ -32,6 +32,14 @@ DEFAULT_SCHEDULE_DAYS = 7
 STATUS_SCHEDULED = "SCHEDULED"
 STATUS_CANCELLED_BY_STUDIO = "CANCELLED_BY_STUDIO"
 
+# Статусы брони.
+BOOKING_CONFIRMED = "CONFIRMED"
+BOOKING_CANCELLED_BY_CLIENT = "CANCELLED_BY_CLIENT"
+
+# Отмена брони клиентом возможна не позднее чем за 2 часа до начала
+# (бриф: поздние отмены — проблема, место и глина простаивают).
+CANCEL_CUTOFF_HOURS = 2
+
 # Замок для атомарного бронирования (защита от «двойных броней», R-004).
 _booking_lock = threading.Lock()
 
@@ -67,10 +75,30 @@ PROGRAMS = {
 }
 
 MASTERS = {
-    "m1": {"id": "m1", "name": "Анна", "rating": 4.9, "ratings_count": 132},
-    "m2": {"id": "m2", "name": "Пётр", "rating": 4.7, "ratings_count": 88},
-    "m3": {"id": "m3", "name": "Света", "rating": 4.8, "ratings_count": 51},
-    "m4": {"id": "m4", "name": "Игорь", "rating": 4.5, "ratings_count": 27},
+    "m1": {
+        "id": "m1", "name": "Анна", "rating": 4.9, "ratings_count": 132,
+        "specialty": "Гончарный круг",
+        "bio": "Основательница мастерской. 12 лет за кругом, училась у мастеров "
+               "в Гжели и Тоскане. Умеет поставить руки даже тем, кто «совсем не творческий».",
+    },
+    "m2": {
+        "id": "m2", "name": "Пётр", "rating": 4.7, "ratings_count": 88,
+        "specialty": "Лепка и глазурь",
+        "bio": "Керамист-скульптор. Ведёт лепку и курс по глазурям — его фирменные "
+               "«лунные» поливы разбирают в первый день после обжига.",
+    },
+    "m3": {
+        "id": "m3", "name": "Света", "rating": 4.8, "ratings_count": 51,
+        "specialty": "Гончарный круг",
+        "bio": "Терпеливо объясняет центровку столько раз, сколько нужно. "
+               "Любимый мастер новичков — после её занятий возвращаются чаще всего.",
+    },
+    "m4": {
+        "id": "m4", "name": "Игорь", "rating": 4.5, "ratings_count": 27,
+        "specialty": "Лепка руками",
+        "bio": "Недавно в команде, но уже собрал свою аудиторию: посуда с характером, "
+               "фактуры и «неправильные» формы.",
+    },
 }
 
 # Прокат инструментов и фартука — без указания размеров (специфика брифа).
@@ -130,6 +158,21 @@ def seed_data():
             "rental_price": RENTAL_PRICE,
         }
 
+    # Демо-брони для экрана «Мои записи» (телефон +7 900 000-00-00).
+    # Уже учтены в booked_count слотов выше — счётчики не трогаем.
+    BOOKINGS["demo-wheel"] = {
+        "id": "demo-wheel", "slot_id": "s4",
+        "customer_name": "Демо Клиент", "customer_phone": "+7 900 000-00-00",
+        "rental": True, "status": BOOKING_CONFIRMED,
+        "created_at": now.isoformat(timespec="seconds"),
+    }
+    BOOKINGS["demo-kiln"] = {
+        "id": "demo-kiln", "slot_id": "s6",
+        "customer_name": "Демо Клиент", "customer_phone": "+7 900 000-00-00",
+        "rental": False, "status": BOOKING_CONFIRMED,
+        "created_at": now.isoformat(timespec="seconds"),
+    }
+
 
 # --------------------------------------------------------------------------- #
 #  Сериализация
@@ -161,6 +204,7 @@ def serialize_slot(slot):
             "name": master["name"],
             "rating": master["rating"],
             "ratings_count": master["ratings_count"],
+            "specialty": master["specialty"],
         },
         "rental_available": slot["rental_available"],
         "rental_price": slot["rental_price"],
@@ -323,6 +367,77 @@ def get_booking(booking_id):
         "booking": booking,
         "slot": serialize_slot(SLOTS[booking["slot_id"]]),
     })
+
+
+def _normalize_phone(phone):
+    """Сводит телефон к последним 10 цифрам для сравнения записей."""
+    digits = "".join(ch for ch in (phone or "") if ch.isdigit())
+    return digits[-10:]
+
+
+@app.route("/api/bookings", methods=["GET"])
+def list_bookings():
+    """Мои записи: все брони по номеру телефона (?phone=...)."""
+    key = _normalize_phone(request.args.get("phone", ""))
+    if len(key) < 10:
+        return jsonify({"error": "phone is required (min 10 digits)"}), 400
+
+    items = [
+        {**b, "slot": serialize_slot(SLOTS[b["slot_id"]])}
+        for b in BOOKINGS.values()
+        if _normalize_phone(b["customer_phone"]) == key
+    ]
+    items.sort(key=lambda b: b["slot"]["start_time"])
+    return jsonify({"bookings": items, "count": len(items)})
+
+
+@app.route("/api/bookings/<booking_id>/cancel", methods=["POST"])
+def cancel_booking(booking_id):
+    """Отмена брони клиентом.
+
+    Правила (бриф: поздние отмены — проблема):
+      * отменить можно не позднее чем за CANCEL_CUTOFF_HOURS часа до начала;
+      * место освобождается (booked_count -= 1);
+      * бронь по отменённому мастерской слоту отменять не нужно (R-008 —
+        она уже помечена статусом слота).
+    """
+    with _booking_lock:
+        booking = BOOKINGS.get(booking_id)
+        if booking is None:
+            return jsonify({"error": "booking not found"}), 404
+        if booking["status"] != BOOKING_CONFIRMED:
+            return jsonify({"error": "already_cancelled",
+                            "message": "Бронь уже отменена"}), 409
+
+        slot = SLOTS[booking["slot_id"]]
+        if slot["status"] == STATUS_CANCELLED_BY_STUDIO:
+            return jsonify({"error": "slot_cancelled",
+                            "message": "Занятие отменено мастерской — "
+                                       "бронь снимать не нужно"}), 409
+
+        start = datetime.fromisoformat(slot["start_time"])
+        if start - datetime.now() < timedelta(hours=CANCEL_CUTOFF_HOURS):
+            return jsonify({
+                "error": "late_cancellation",
+                "message": "До начала занятия менее %d часов — отмена онлайн "
+                           "недоступна, позвоните нам" % CANCEL_CUTOFF_HOURS,
+            }), 409
+
+        booking["status"] = BOOKING_CANCELLED_BY_CLIENT
+        slot["booked_count"] = max(slot["booked_count"] - 1, 0)
+
+    return jsonify({
+        "booking": booking,
+        "slot": serialize_slot(slot),
+        "message": "Бронь отменена, место освобождено",
+    })
+
+
+@app.route("/api/masters", methods=["GET"])
+def list_masters():
+    """Команда мастерской с рейтингами."""
+    masters = sorted(MASTERS.values(), key=lambda m: -m["rating"])
+    return jsonify({"masters": masters, "count": len(masters)})
 
 
 seed_data()
