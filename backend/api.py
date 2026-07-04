@@ -103,6 +103,8 @@ MASTERS = {
 
 # Прокат инструментов и фартука — без указания размеров (специфика брифа).
 RENTAL_PRICE = 400
+# Свободный прокатный фонд наборов инструментов на слот (R-015).
+RENTAL_STOCK = 8
 
 # Слоты и брони наполняются функцией seed_data() относительно текущей даты.
 SLOTS = {}
@@ -138,7 +140,12 @@ def seed_data():
         (4, 10, "handbuilding", "m3", 10, 3, STATUS_SCHEDULED, None),
         # день 5 намеренно пуст — «дырка» в расписании
         (6, 14, "wheel", "m1", 6, 4, STATUS_SCHEDULED, None),
-        (9, 13, "handbuilding", "m2", 10, 1, STATUS_SCHEDULED, None),  # за горизонтом 7 дней
+        # --- за горизонтом 7 дней: видны только через фильтр «14 дней» (R-027) ---
+        (8, 11, "wheel", "m3", 6, 2, STATUS_SCHEDULED, None),
+        (8, 18, "handbuilding", "m4", 10, 4, STATUS_SCHEDULED, None),
+        (9, 13, "handbuilding", "m2", 10, 1, STATUS_SCHEDULED, None),
+        (11, 12, "wheel", "m1", 6, 0, STATUS_SCHEDULED, None),
+        (13, 19, "handbuilding", "m2", 10, 6, STATUS_SCHEDULED, None),
     ]
 
     for i, (day, hour, prog, master, cap, booked, status, reason) in enumerate(plan, start=1):
@@ -156,6 +163,7 @@ def seed_data():
             "cancel_reason": reason,
             "rental_available": True,
             "rental_price": RENTAL_PRICE,
+            "rental_stock": RENTAL_STOCK,
         }
 
     # Демо-брони для экрана «Мои записи» (телефон +7 900 000-00-00).
@@ -208,6 +216,7 @@ def serialize_slot(slot):
         },
         "rental_available": slot["rental_available"],
         "rental_price": slot["rental_price"],
+        "rental_stock": slot.get("rental_stock", 0),
         "studio_address": STUDIO_ADDRESS,
     }
 
@@ -438,6 +447,158 @@ def list_masters():
     """Команда мастерской с рейтингами."""
     masters = sorted(MASTERS.values(), key=lambda m: -m["rating"])
     return jsonify({"masters": masters, "count": len(masters)})
+
+
+# --------------------------------------------------------------------------- #
+#  Аутентификация и роль администратора
+# --------------------------------------------------------------------------- #
+#
+#  Учебная схема: пароли и токены в открытом виде in-memory. В реальной
+#  инфраструктуре аутентификация и админка уже существуют (R-028) — здесь
+#  добавлен минимальный слой, чтобы продемонстрировать роль владельца/админа
+#  из исходного письма Марины («экран, где я вижу всё расписание и могу
+#  что-то поправить руками»).
+
+USERS = {
+    "admin": {"password": "admin123", "role": "admin", "name": "Марина"},
+    "client": {"password": "client123", "role": "client",
+               "name": "Демо Клиент", "phone": "+7 900 000-00-00"},
+}
+
+# token -> username
+TOKENS = {}
+
+
+def _public_user(username):
+    u = USERS[username]
+    data = {"login": username, "role": u["role"], "name": u["name"]}
+    if "phone" in u:
+        data["phone"] = u["phone"]
+    return data
+
+
+def _auth_user():
+    """Возвращает username по заголовку Authorization: Bearer <token>."""
+    header = request.headers.get("Authorization", "")
+    if not header.startswith("Bearer "):
+        return None
+    return TOKENS.get(header[7:])
+
+
+def require_admin():
+    """Проверка прав администратора. Возвращает (username | None)."""
+    username = _auth_user()
+    if username and USERS.get(username, {}).get("role") == "admin":
+        return username
+    return None
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def login():
+    data = request.get_json(silent=True) or {}
+    username = (data.get("login") or "").strip()
+    password = data.get("password") or ""
+
+    user = USERS.get(username)
+    if user is None or user["password"] != password:
+        return jsonify({"error": "invalid_credentials",
+                        "message": "Неверный логин или пароль"}), 401
+
+    token = uuid.uuid4().hex
+    TOKENS[token] = username
+    return jsonify({"token": token, "user": _public_user(username)})
+
+
+@app.route("/api/auth/me", methods=["GET"])
+def me():
+    username = _auth_user()
+    if username is None:
+        return jsonify({"error": "unauthorized"}), 401
+    return jsonify({"user": _public_user(username)})
+
+
+def _admin_slot_view(slot):
+    """Расширенное представление слота для админа — с составом брони."""
+    view = serialize_slot(slot)
+    view["bookings"] = [
+        {"id": b["id"], "customer_name": b["customer_name"],
+         "customer_phone": b["customer_phone"], "rental": b["rental"],
+         "status": b["status"]}
+        for b in BOOKINGS.values() if b["slot_id"] == slot["id"]
+    ]
+    return view
+
+
+@app.route("/api/admin/slots", methods=["GET"])
+def admin_list_slots():
+    """Всё расписание для админа — включая прошедшие и отменённые слоты."""
+    if not require_admin():
+        return jsonify({"error": "forbidden"}), 403
+    slots = [_admin_slot_view(s) for s in SLOTS.values()]
+    slots.sort(key=lambda s: s["start_time"])
+    return jsonify({"slots": slots, "count": len(slots)})
+
+
+@app.route("/api/admin/slots/<slot_id>/cancel", methods=["POST"])
+def admin_cancel_slot(slot_id):
+    """Отмена занятия мастерской/по форс-мажору (R-008)."""
+    if not require_admin():
+        return jsonify({"error": "forbidden"}), 403
+    slot = SLOTS.get(slot_id)
+    if slot is None:
+        return jsonify({"error": "slot not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    reason = (data.get("reason") or "").strip() or "Отмена мастерской"
+    slot["status"] = STATUS_CANCELLED_BY_STUDIO
+    slot["cancel_reason"] = reason
+    # R-008: брони не удаляются — остаются со статусом отменённого слота.
+    return jsonify({"slot": _admin_slot_view(slot),
+                    "message": "Занятие отменено, клиенты будут уведомлены"})
+
+
+@app.route("/api/admin/slots/<slot_id>/restore", methods=["POST"])
+def admin_restore_slot(slot_id):
+    """Вернуть ошибочно отменённое занятие в расписание."""
+    if not require_admin():
+        return jsonify({"error": "forbidden"}), 403
+    slot = SLOTS.get(slot_id)
+    if slot is None:
+        return jsonify({"error": "slot not found"}), 404
+
+    slot["status"] = STATUS_SCHEDULED
+    slot["cancel_reason"] = None
+    return jsonify({"slot": _admin_slot_view(slot),
+                    "message": "Занятие возвращено в расписание"})
+
+
+@app.route("/api/admin/slots/<slot_id>", methods=["PATCH"])
+def admin_update_slot(slot_id):
+    """Ручная правка вместимости слота (в пределах максимума программы)."""
+    if not require_admin():
+        return jsonify({"error": "forbidden"}), 403
+    slot = SLOTS.get(slot_id)
+    if slot is None:
+        return jsonify({"error": "slot not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    if "capacity" in data:
+        try:
+            capacity = int(data["capacity"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "invalid capacity"}), 400
+        program_max = PROGRAMS[slot["program_id"]]["max_capacity"]
+        if capacity < slot["booked_count"]:
+            return jsonify({"error": "capacity_below_booked",
+                            "message": "Вместимость не может быть меньше числа "
+                                       "уже записанных (%d)" % slot["booked_count"]}), 409
+        if capacity > program_max:
+            return jsonify({"error": "capacity_above_max",
+                            "message": "Максимум для этой программы — %d" % program_max}), 409
+        slot["capacity"] = capacity
+
+    return jsonify({"slot": _admin_slot_view(slot),
+                    "message": "Слот обновлён"})
 
 
 seed_data()
