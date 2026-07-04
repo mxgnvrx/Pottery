@@ -6,9 +6,10 @@
 ## Структура
 
 ```
-docs/       отчёты по этапам (аналитика, проектирование, разработка, тестирование)
+docs/       бриф заказчика + отчёты по этапам (аналитика, проектирование,
+            разработка, тестирование, доработки)
 backend/    REST API на Python/Flask (in-memory данные)
-frontend/   3 экрана на HTML/CSS/JS без фреймворков
+frontend/   7 экранов на HTML/CSS/JS без фреймворков
 ```
 
 ## Запуск
@@ -65,3 +66,4 @@ python api.py          # http://127.0.0.1:5000
 | Тестирование и багфикс | [`docs/04-testing-bugfix.md`](docs/04-testing-bugfix.md) |
 | Расширение и редизайн | [`docs/05-enhancements.md`](docs/05-enhancements.md) |
 | Аудит требований, админка, адаптив | [`docs/06-admin-auth.md`](docs/06-admin-auth.md) |
+| Полировка: дизайн-баги, чистка кода | [`docs/07-design-polish.md`](docs/07-design-polish.md) |
