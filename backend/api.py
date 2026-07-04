@@ -278,14 +278,21 @@ def create_booking():
         if slot is None:
             return jsonify({"error": "slot not found"}), 404
 
+        # R-008: запрет записи на слот, отменённый мастерской.
+        if slot["status"] == STATUS_CANCELLED_BY_STUDIO:
+            return jsonify({
+                "error": "slot_cancelled",
+                "message": "Занятие отменено мастерской. Запись недоступна.",
+                "cancel_reason": slot["cancel_reason"],
+            }), 409
+
         remaining = slot["capacity"] - slot["booked_count"]
-        # BUG: проверка использует `< 0` вместо `<= 0`, поэтому последнее
-        # (лишнее) бронирование проходит и уводит remaining в отрицательное.
-        if remaining < 0:
+        # R-004: нет свободных мест — отклоняем бронь (защита от двойных броней).
+        if remaining <= 0:
             return jsonify({
                 "error": "no_places",
                 "message": "Мест не осталось",
-                "remaining_places": max(remaining, 0),
+                "remaining_places": 0,
             }), 409
 
         booking_id = uuid.uuid4().hex[:12]

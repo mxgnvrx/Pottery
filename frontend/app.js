@@ -78,11 +78,19 @@ function renderSlotCard(slot) {
     <p class="card__price">${slot.program.price} ₽</p>
   `;
 
-  const btn = document.createElement('a');
-  btn.className = 'btn btn--primary card__btn';
-  btn.href = `details.html?id=${slot.id}`;
-  btn.textContent = cancelled ? 'Подробнее' : 'Записаться';
-  card.appendChild(btn);
+  if (full && !cancelled) {
+    // Мест нет: не ведём пользователя в тупик, показываем неактивную кнопку.
+    const btn = document.createElement('span');
+    btn.className = 'btn btn--disabled card__btn';
+    btn.textContent = 'Мест нет';
+    card.appendChild(btn);
+  } else {
+    const btn = document.createElement('a');
+    btn.className = 'btn btn--primary card__btn';
+    btn.href = `details.html?id=${slot.id}`;
+    btn.textContent = cancelled ? 'Подробнее' : 'Записаться';
+    card.appendChild(btn);
+  }
 
   return card;
 }
