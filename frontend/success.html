@@ -9,13 +9,18 @@
 <body data-page="success">
   <header class="topbar">
     <div class="topbar__inner">
-      <span class="logo">🏺 Глина</span>
+      <a class="logo" href="index.html"><span class="logo__mark">🏺</span>Глина</a>
+      <nav class="nav">
+        <a href="index.html" class="nav__link">Расписание</a>
+        <a href="masters.html" class="nav__link">Мастера</a>
+        <a href="bookings.html" class="nav__link">Мои записи</a>
+      </nav>
     </div>
   </header>
 
   <main class="container container--narrow">
     <section class="success">
-      <div class="success__icon">✅</div>
+      <div class="success__icon">✓</div>
       <h1 class="success__title">Вы записаны!</h1>
       <p class="success__text">
         <b id="success-name">Гость</b>, ждём вас на занятии
@@ -24,11 +29,28 @@
       <ul class="success__facts">
         <li>🗓️ <span id="success-when">—</span></li>
         <li>🧰 <span id="success-rental">—</span></li>
+        <li>📍 ул. Гончарная, д. 12</li>
       </ul>
-      <p class="success__hint">Оплата на месте — наличными или переводом. До встречи в мастерской!</p>
-      <a class="btn btn--primary btn--block" href="index.html">К расписанию</a>
+      <p class="success__hint">
+        Оплата на месте — наличными или переводом. Если планы изменятся,
+        отменить запись можно в разделе «Мои записи» не позднее чем за 2 часа.
+      </p>
+      <div class="success__actions">
+        <a class="btn btn--primary btn--block" href="bookings.html">Мои записи</a>
+        <a class="btn btn--ghost btn--block" href="index.html">К расписанию</a>
+      </div>
     </section>
   </main>
+
+  <footer class="footer">
+    <div class="footer__inner">
+      <span class="footer__brand">🏺 Глина</span>
+      <div class="footer__meta">
+        г. Москва, ул. Гончарная, д. 12<br>
+        ежедневно 10:00–21:00 · оплата на месте
+      </div>
+    </div>
+  </footer>
 
   <script src="app.js"></script>
 </body>
