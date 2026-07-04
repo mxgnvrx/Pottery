@@ -39,6 +39,55 @@ function getParam(name) {
   return new URLSearchParams(window.location.search).get(name);
 }
 
+/* ----------------------------- авторизация ------------------------------- */
+
+const AUTH_KEY = 'glina_auth';
+
+function getAuth() {
+  try { return JSON.parse(localStorage.getItem(AUTH_KEY)); }
+  catch (e) { return null; }
+}
+function setAuth(a) { localStorage.setItem(AUTH_KEY, JSON.stringify(a)); }
+function clearAuth() { localStorage.removeItem(AUTH_KEY); }
+function authHeaders() {
+  const a = getAuth();
+  return a ? { 'Authorization': 'Bearer ' + a.token } : {};
+}
+
+/** Дорисовывает в шапке ссылки входа/выхода и «Админку» для роли admin. */
+function renderNav() {
+  const nav = document.querySelector('.nav');
+  if (!nav) return;
+  const auth = getAuth();
+
+  if (auth && auth.role === 'admin' &&
+      !nav.querySelector('[href="admin.html"]')) {
+    const a = document.createElement('a');
+    a.className = 'nav__link';
+    a.href = 'admin.html';
+    a.textContent = 'Админка';
+    if (document.body.dataset.page === 'admin') a.classList.add('nav__link--active');
+    nav.appendChild(a);
+  }
+
+  const ctrl = document.createElement('a');
+  ctrl.className = 'nav__link nav__link--auth';
+  if (auth) {
+    ctrl.href = '#';
+    ctrl.textContent = 'Выйти';
+    ctrl.title = auth.name;
+    ctrl.addEventListener('click', (e) => {
+      e.preventDefault();
+      clearAuth();
+      window.location.href = 'index.html';
+    });
+  } else {
+    ctrl.href = 'login.html';
+    ctrl.textContent = 'Войти';
+  }
+  nav.appendChild(ctrl);
+}
+
 function starsHtml(rating) {
   const full = Math.round(rating);
   let out = '';
@@ -442,7 +491,7 @@ function renderBookingCard(b, phone) {
       <div class="card__icon">${PROGRAM_ICONS[slot.program.code] || '🎨'}</div>
       <div class="booking__info">
         <h3 class="card__title">${slot.program.title}</h3>
-        <p class="card__meta">${dayLabel(slot.start_time)}, ${formatDateTime(slot.start_time)}
+        <p class="card__meta">${dayLabel(slot.start_time)}, ${formatTime(slot.start_time)}
           · мастер ${slot.master.name}</p>
         <p class="card__meta">${b.rental ? '🧰 прокат инструментов' : 'со своими инструментами'}</p>
         ${studioCancelled && slot.cancel_reason
@@ -480,13 +529,203 @@ async function cancelBooking(id, phone, btn) {
   }
 }
 
+/* ------------------------- экран 6: вход --------------------------------- */
+
+function initLogin() {
+  const form = document.getElementById('login-form');
+
+  // Быстрое заполнение демо-аккаунтов.
+  document.querySelectorAll('[data-demo]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const [login, pass] = btn.dataset.demo.split(':');
+      document.getElementById('login').value = login;
+      document.getElementById('password').value = pass;
+    });
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    document.getElementById('error-box').hidden = true;
+    const payload = {
+      login: document.getElementById('login').value.trim(),
+      password: document.getElementById('password').value,
+    };
+    try {
+      const res = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showError(data.message || 'Не удалось войти.');
+        return;
+      }
+      setAuth({ token: data.token, ...data.user });
+      if (data.user.phone) localStorage.setItem(PHONE_KEY, data.user.phone);
+      window.location.href =
+        data.user.role === 'admin' ? 'admin.html' : 'bookings.html';
+    } catch (err) {
+      showError('Ошибка сети. Проверьте сервер.');
+      console.error(err);
+    }
+  });
+}
+
+/* ------------------------- экран 7: админка ------------------------------ */
+
+async function initAdmin() {
+  const auth = getAuth();
+  if (!auth || auth.role !== 'admin') {
+    window.location.href = 'login.html';
+    return;
+  }
+  document.getElementById('admin-user').textContent = auth.name;
+  await loadAdminSlots();
+}
+
+async function loadAdminSlots() {
+  const box = document.getElementById('admin-slots');
+  box.innerHTML = '<p class="muted">Загрузка…</p>';
+  try {
+    const res = await fetch(`${API_BASE}/admin/slots`, { headers: authHeaders() });
+    if (res.status === 403 || res.status === 401) {
+      clearAuth();
+      window.location.href = 'login.html';
+      return;
+    }
+    const data = await res.json();
+    renderAdminSlots(data.slots || []);
+  } catch (e) {
+    box.innerHTML = '';
+    showError('Не удалось загрузить расписание. Проверьте сервер.');
+    console.error(e);
+  }
+}
+
+function renderAdminSlots(slots) {
+  const box = document.getElementById('admin-slots');
+  box.innerHTML = '';
+
+  // Сводка.
+  const total = slots.length;
+  const cancelled = slots.filter((s) => s.status === 'CANCELLED_BY_STUDIO').length;
+  const booked = slots.reduce((n, s) => n + s.booked_count, 0);
+  document.getElementById('admin-summary').innerHTML =
+    `<span class="stat">Слотов: ${total}</span>
+     <span class="stat">Записей: ${booked}</span>
+     <span class="stat">Отменено: ${cancelled}</span>`;
+
+  for (const slot of slots) {
+    box.appendChild(renderAdminRow(slot));
+  }
+}
+
+function renderAdminRow(slot) {
+  const cancelled = slot.status === 'CANCELLED_BY_STUDIO';
+  const past = new Date(slot.start_time) < new Date();
+
+  const row = document.createElement('article');
+  row.className = 'admin-row' + (cancelled ? ' admin-row--cancelled' : '')
+    + (past ? ' admin-row--past' : '');
+
+  const names = slot.bookings
+    .filter((b) => b.status === 'CONFIRMED')
+    .map((b) => b.customer_name).join(', ') || '—';
+
+  row.innerHTML = `
+    <div class="admin-row__main">
+      <div class="admin-row__when">
+        <b>${dayLabel(slot.start_time)}</b>
+        <span>${formatTime(slot.start_time)}${past ? ' · прошло' : ''}</span>
+      </div>
+      <div class="admin-row__prog">
+        ${PROGRAM_ICONS[slot.program.code] || '🎨'} ${slot.program.title}
+        <span class="muted">· ${slot.master.name}</span>
+      </div>
+      <div class="admin-row__cap">
+        <span class="badge ${cancelled ? 'badge--cancelled'
+          : slot.remaining_places <= 0 ? 'badge--full' : 'badge--free'}">
+          ${slot.booked_count} / ${slot.capacity}
+        </span>
+      </div>
+    </div>
+    <div class="admin-row__people">Записаны: ${names}
+      ${cancelled && slot.cancel_reason
+        ? `<span class="booking__reason">Отменено: ${slot.cancel_reason.toLowerCase()}</span>` : ''}
+    </div>
+    <div class="admin-row__actions"></div>
+  `;
+
+  const actions = row.querySelector('.admin-row__actions');
+
+  if (cancelled) {
+    actions.appendChild(makeBtn('Вернуть в расписание', 'btn--ghost',
+      () => adminAction(`/admin/slots/${slot.id}/restore`, 'POST')));
+  } else {
+    // Ручная правка вместимости (в пределах максимума программы).
+    const stepper = document.createElement('div');
+    stepper.className = 'stepper';
+    stepper.innerHTML = `<span class="stepper__label">Мест:</span>`;
+    const minus = makeBtn('−', 'stepper__btn', () =>
+      adminPatchCapacity(slot.id, slot.capacity - 1));
+    const val = document.createElement('span');
+    val.className = 'stepper__val';
+    val.textContent = slot.capacity;
+    const plus = makeBtn('+', 'stepper__btn', () =>
+      adminPatchCapacity(slot.id, slot.capacity + 1));
+    stepper.append(minus, val, plus);
+    actions.appendChild(stepper);
+
+    actions.appendChild(makeBtn('Отменить занятие', 'btn--danger', () => {
+      const reason = prompt('Причина отмены (увидят клиенты):', 'Форс-мажор: сломалась печь');
+      if (reason === null) return;
+      adminAction(`/admin/slots/${slot.id}/cancel`, 'POST', { reason });
+    }));
+  }
+
+  return row;
+}
+
+function makeBtn(text, cls, handler) {
+  const b = document.createElement('button');
+  b.className = 'btn btn--small ' + cls;
+  b.textContent = text;
+  b.addEventListener('click', handler);
+  return b;
+}
+
+async function adminAction(path, method, body) {
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showError(data.message || 'Действие не выполнено.'); return; }
+    document.getElementById('error-box').hidden = true;
+    await loadAdminSlots();
+  } catch (e) {
+    showError('Ошибка сети. Проверьте сервер.');
+    console.error(e);
+  }
+}
+
+function adminPatchCapacity(id, capacity) {
+  adminAction(`/admin/slots/${id}`, 'PATCH', { capacity });
+}
+
 /* ------------------------- маршрутизация --------------------------------- */
 
 document.addEventListener('DOMContentLoaded', () => {
+  renderNav();
   const page = document.body.dataset.page;
   if (page === 'schedule') initSchedule();
   else if (page === 'details') initDetails();
   else if (page === 'success') initSuccess();
   else if (page === 'masters') initMasters();
   else if (page === 'bookings') initBookings();
+  else if (page === 'login') initLogin();
+  else if (page === 'admin') initAdmin();
 });
