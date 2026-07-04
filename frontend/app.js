@@ -20,11 +20,7 @@ function formatTime(iso) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function formatDateTime(iso) {
-  const d = new Date(iso);
-  return `${d.getDate()} ${MONTHS[d.getMonth()]} в ${formatTime(iso)}`;
-}
-
+/* «Сегодня» / «Завтра» / «Пятница, 10 июля» — месяц остаётся со строчной. */
 function dayLabel(iso) {
   const d = new Date(iso);
   const today = new Date();
@@ -32,7 +28,17 @@ function dayLabel(iso) {
   const diff = Math.round((startOfDay(d) - startOfDay(today)) / 86400000);
   if (diff === 0) return 'Сегодня';
   if (diff === 1) return 'Завтра';
-  return `${WEEKDAYS[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  const weekday = WEEKDAYS[d.getDay()];
+  return `${weekday[0].toUpperCase()}${weekday.slice(1)}, ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+}
+
+/* Полная метка с датой и временем: «Сегодня, 4 июля в 18:00». */
+function formatWhen(iso) {
+  const d = new Date(iso);
+  const label = dayLabel(iso);
+  const date = `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  const withDate = label.includes(date) ? label : `${label}, ${date}`;
+  return `${withDate} в ${formatTime(iso)}`;
 }
 
 function getParam(name) {
@@ -313,7 +319,7 @@ function renderDetails(slot, container) {
       <div class="detail__icon">${PROGRAM_ICONS[slot.program.code] || '🎨'}</div>
       <div>
         <h1 class="detail__title">${slot.program.title}</h1>
-        <p class="detail__when">${dayLabel(slot.start_time)} · ${formatDateTime(slot.start_time)}</p>
+        <p class="detail__when">${formatWhen(slot.start_time)}</p>
       </div>
     </div>
     <p class="detail__desc">${slot.program.description}</p>
@@ -386,8 +392,7 @@ function initSuccess() {
   document.getElementById('success-name').textContent = name;
   document.getElementById('success-program').textContent = program;
   if (when) {
-    document.getElementById('success-when').textContent =
-      `${dayLabel(when)}, ${formatDateTime(when)}`;
+    document.getElementById('success-when').textContent = formatWhen(when);
   }
   document.getElementById('success-rental').textContent =
     rental ? 'Инструменты и фартук — напрокат' : 'Со своими инструментами';
