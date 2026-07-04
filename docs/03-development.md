@@ -48,7 +48,7 @@
 
 **Бизнес-требование:** US-C1…C4, R-004 (атомарность, 409), R-008.
 
-**Бэкенд (`app.py → create_booking`):**
+**Бэкенд (`api.py → create_booking`):**
 * `POST /api/bookings` — валидирует `slot_id`, `customer_name`, `customer_phone`.
 * Критическая секция под `threading.Lock`: проверка слота → проверка мест →
   инкремент `booked_count` → запись брони. Возвращает `201` с бронью и слотом.
