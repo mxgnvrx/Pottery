@@ -1,0 +1,197 @@
+/* Гончарная мастерская «Глина» — стили клиентского приложения (mobile-first). */
+
+:root {
+  --clay: #b5651d;
+  --clay-dark: #8f4e14;
+  --cream: #faf6f0;
+  --ink: #2b2320;
+  --muted: #7a6f66;
+  --line: #e7ddd1;
+  --green: #2e7d4f;
+  --red: #c0392b;
+  --amber: #b8860b;
+  --radius: 14px;
+  --shadow: 0 2px 10px rgba(80, 50, 20, 0.08);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--cream);
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+/* --------------------------- шапка --------------------------------------- */
+
+.topbar {
+  background: var(--clay);
+  color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: var(--shadow);
+}
+.topbar__inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.logo { font-weight: 700; font-size: 1.15rem; }
+.topbar__sub { font-size: 0.85rem; opacity: 0.9; margin-left: auto; }
+.back { color: #fff; text-decoration: none; font-weight: 600; }
+.back:hover { text-decoration: underline; }
+
+/* --------------------------- контейнеры ---------------------------------- */
+
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px 18px 60px;
+}
+.container--narrow { max-width: 480px; }
+
+.page-title { margin: 8px 0 2px; font-size: 1.5rem; }
+.page-hint { margin: 0 0 20px; color: var(--muted); }
+
+/* --------------------------- карточки слотов ----------------------------- */
+
+.slots { display: grid; gap: 14px; }
+
+.card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.card--cancelled { opacity: 0.75; }
+.card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+.card__title { margin: 0; font-size: 1.1rem; }
+.card__meta { margin: 4px 0 0; color: var(--muted); font-size: 0.92rem; }
+.card__price { margin: 10px 0 12px; font-weight: 700; font-size: 1.05rem; }
+.card__btn { display: inline-block; }
+
+/* --------------------------- бейджи -------------------------------------- */
+
+.badge {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.badge--free { background: #e6f4ec; color: var(--green); }
+.badge--full { background: #fdecea; color: var(--red); }
+.badge--cancelled { background: #f3ede0; color: var(--amber); }
+
+/* --------------------------- кнопки -------------------------------------- */
+
+.btn {
+  display: inline-block;
+  border: none;
+  border-radius: 10px;
+  padding: 11px 20px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+}
+.btn--primary { background: var(--clay); color: #fff; }
+.btn--primary:hover { background: var(--clay-dark); }
+.btn--block { width: 100%; }
+.btn--disabled,
+.btn[disabled] {
+  background: #ddd3c6;
+  color: #8a8078;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* --------------------------- детали слота -------------------------------- */
+
+.detail {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+.detail__title { margin: 0 0 6px; }
+.detail__when { font-weight: 600; color: var(--clay-dark); }
+.detail__row { margin: 8px 0; }
+.detail__address { color: var(--muted); }
+.detail__price { margin-top: 14px; font-size: 1.25rem; font-weight: 700; }
+
+/* --------------------------- форма --------------------------------------- */
+
+.form {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-top: 16px;
+  box-shadow: var(--shadow);
+}
+.form__title { margin: 0 0 14px; font-size: 1.2rem; }
+.field { display: block; margin-bottom: 14px; }
+.field__label { display: block; font-size: 0.9rem; color: var(--muted); margin-bottom: 5px; }
+.field__input {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 1rem;
+}
+.field__input:focus { outline: 2px solid var(--clay); border-color: var(--clay); }
+.checkbox { display: flex; align-items: center; gap: 10px; margin: 4px 0 18px; }
+.checkbox input { width: 18px; height: 18px; }
+
+/* --------------------------- служебные блоки ----------------------------- */
+
+.alert { border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; font-size: 0.95rem; }
+.alert--error { background: #fdecea; color: var(--red); border: 1px solid #f5c6c0; }
+.alert--warn { background: #fdf6e3; color: var(--amber); border: 1px solid #efe1b8; }
+
+.empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--muted);
+}
+.empty__icon { font-size: 2.4rem; }
+.empty__title { font-size: 1.15rem; font-weight: 600; color: var(--ink); margin: 10px 0 4px; }
+.empty__text { margin: 0; }
+
+/* --------------------------- экран успеха -------------------------------- */
+
+.success {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 30px 22px;
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+.success__icon { font-size: 3rem; }
+.success__title { margin: 8px 0 10px; }
+.success__text { margin: 0 0 16px; }
+.success__facts {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+  text-align: left;
+  display: inline-block;
+}
+.success__facts li { margin: 6px 0; }
+.success__hint { color: var(--muted); font-size: 0.92rem; margin-bottom: 20px; }
