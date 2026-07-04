@@ -176,7 +176,6 @@ function renderSchedule() {
   }
   empty.hidden = true;
 
-  // Группировка по дням.
   const groups = new Map();
   for (const slot of filtered) {
     const key = slot.start_time.slice(0, 10);
@@ -236,7 +235,6 @@ function renderSlotCard(slot) {
 
   const action = card.querySelector('.card__action');
   if (full && !cancelled) {
-    // Мест нет: не ведём пользователя в тупик — кнопка неактивна.
     const btn = document.createElement('span');
     btn.className = 'btn btn--disabled';
     btn.textContent = 'Мест нет';
@@ -534,7 +532,6 @@ async function cancelBooking(id, phone, btn) {
 function initLogin() {
   const form = document.getElementById('login-form');
 
-  // Быстрое заполнение демо-аккаунтов.
   document.querySelectorAll('[data-demo]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const [login, pass] = btn.dataset.demo.split(':');
@@ -607,7 +604,6 @@ function renderAdminSlots(slots) {
   const box = document.getElementById('admin-slots');
   box.innerHTML = '';
 
-  // Сводка.
   const total = slots.length;
   const cancelled = slots.filter((s) => s.status === 'CANCELLED_BY_STUDIO').length;
   const booked = slots.reduce((n, s) => n + s.booked_count, 0);
@@ -663,7 +659,6 @@ function renderAdminRow(slot) {
     actions.appendChild(makeBtn('Вернуть в расписание', 'btn--ghost',
       () => adminAction(`/admin/slots/${slot.id}/restore`, 'POST')));
   } else {
-    // Ручная правка вместимости (в пределах максимума программы).
     const stepper = document.createElement('div');
     stepper.className = 'stepper';
     stepper.innerHTML = `<span class="stepper__label">Мест:</span>`;

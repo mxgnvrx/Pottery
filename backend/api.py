@@ -28,11 +28,9 @@ app = Flask(__name__)
 # Горизонт расписания по умолчанию — 7 дней (R-027).
 DEFAULT_SCHEDULE_DAYS = 7
 
-# Статусы слота.
 STATUS_SCHEDULED = "SCHEDULED"
 STATUS_CANCELLED_BY_STUDIO = "CANCELLED_BY_STUDIO"
 
-# Статусы брони.
 BOOKING_CONFIRMED = "CONFIRMED"
 BOOKING_CANCELLED_BY_CLIENT = "CANCELLED_BY_CLIENT"
 
@@ -106,7 +104,6 @@ RENTAL_PRICE = 400
 # Свободный прокатный фонд наборов инструментов на слот (R-015).
 RENTAL_STOCK = 8
 
-# Слоты и брони наполняются функцией seed_data() относительно текущей даты.
 SLOTS = {}
 BOOKINGS = {}
 
@@ -356,7 +353,7 @@ def create_booking():
             "customer_name": customer_name,
             "customer_phone": customer_phone,
             "rental": rental,
-            "status": "CONFIRMED",
+            "status": BOOKING_CONFIRMED,
             "created_at": datetime.now().isoformat(timespec="seconds"),
         }
 
