@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Гончарная мастерская «Глина» — Backend REST API (MVP).
 
@@ -10,11 +9,6 @@
   * Карточку занятия (детали слота).
   * Транзакционное бронирование с атомарной проверкой мест (R-004)
     и запретом записи на отменённые мастерской слоты (R-008).
-
-Запуск:
-    pip install -r requirements.txt
-    python api.py
-Сервер поднимается на http://127.0.0.1:5000
 """
 
 import threading
@@ -108,75 +102,139 @@ SLOTS = {}
 BOOKINGS = {}
 
 
-def seed_data():
-    """Наполняет расписание слотами относительно текущего момента.
+# Студия работает ежедневно. Каждый день — 3 занятия в фиксированное время;
+# длительность 2–2.5 ч, сеансы не пересекаются, поэтому в любой момент занят
+# лишь один мастер и одна группа кругов (ресурсы: 4 мастера, 10 кругов).
+SESSIONS = [
+    # (час, минута, длительность_мин) — 2–2.5 ч, окна без пересечений
+    (11, 0, 150),   # 11:00–13:30 (2ч30м)
+    (15, 0, 135),   # 15:00–17:15 (2ч15м)
+    (19, 0, 120),   # 19:00–21:00 (2ч00м)
+]
 
-    Специально формируем разнообразные состояния для демонстрации:
-      * свободные слоты обоих типов;
-      * почти заполненный слот;
-      * полностью заполненный слот (remaining_places == 0);
-      * слот, отменённый мастерской (CANCELLED_BY_STUDIO);
-      * «дырку» в расписании (день без занятий) — для проверки фильтра;
-      * слот за пределами 7 дней — виден только через расширенный фильтр.
+# Мастера по специальности (в MASTERS: m1/m3 — круг, m2/m4 — лепка).
+WHEEL_MASTERS = ["m1", "m3"]
+HAND_MASTERS = ["m2", "m4"]
+
+# На сколько дней вперёд генерируем расписание: 14, чтобы и 7-, и 14-дневный
+# горизонт (R-027) были полностью заполнены.
+SCHEDULE_SEED_DAYS = 14
+
+# Особые состояния для демонстрации крайних случаев на экране расписания:
+#   (день, № занятия) -> модификатор заполненности/статуса.
+SPECIAL_SLOTS = {
+    (1, 1): {"full": True},                          # полностью занят (мест нет)
+    (2, 0): {"almost": True},                        # осталось 1 место
+    (2, 2): {"empty": True},                         # совсем свободно
+    (3, 1): {"status": STATUS_CANCELLED_BY_STUDIO,
+             "reason": "Форс-мажор: сломалась печь"},  # отменён мастерской (R-008)
+}
+
+
+def seed_data():
+    """Наполняет расписание: студия работает ежедневно, по 3 занятия в день.
+
+    Занятия генерируются на SCHEDULE_SEED_DAYS дней вперёд, с чередованием
+    программ и мастеров и разнообразной заполненностью. Несколько слотов
+    помечены особыми состояниями (полный / почти полный / свободный /
+    отменённый мастерской) для демонстрации крайних случаев.
     """
     SLOTS.clear()
     BOOKINGS.clear()
 
     now = datetime.now()
-    base = now.replace(hour=10, minute=0, second=0, microsecond=0)
+    base = now.replace(minute=0, second=0, microsecond=0)
 
-    plan = [
-        # (сдвиг в днях, час, программа, мастер, вместимость, занято, статус, причина)
-        (0, 18, "wheel", "m1", 6, 2, STATUS_SCHEDULED, None),
-        (1, 11, "handbuilding", "m2", 10, 5, STATUS_SCHEDULED, None),
-        (1, 15, "wheel", "m3", 6, 6, STATUS_SCHEDULED, None),        # полностью занят
-        (2, 12, "wheel", "m1", 6, 5, STATUS_SCHEDULED, None),        # осталось 1 место
-        (2, 19, "handbuilding", "m4", 10, 0, STATUS_SCHEDULED, None),
-        (3, 17, "wheel", "m2", 6, 1, STATUS_CANCELLED_BY_STUDIO,
-         "Форс-мажор: сломалась печь"),
-        (4, 10, "handbuilding", "m3", 10, 3, STATUS_SCHEDULED, None),
-        # день 5 намеренно пуст — «дырка» в расписании
-        (6, 14, "wheel", "m1", 6, 4, STATUS_SCHEDULED, None),
-        # --- за горизонтом 7 дней: видны только через фильтр «14 дней» (R-027) ---
-        (8, 11, "wheel", "m3", 6, 2, STATUS_SCHEDULED, None),
-        (8, 18, "handbuilding", "m4", 10, 4, STATUS_SCHEDULED, None),
-        (9, 13, "handbuilding", "m2", 10, 1, STATUS_SCHEDULED, None),
-        (11, 12, "wheel", "m1", 6, 0, STATUS_SCHEDULED, None),
-        (13, 19, "handbuilding", "m2", 10, 6, STATUS_SCHEDULED, None),
-    ]
+    idx = 0
+    for day in range(SCHEDULE_SEED_DAYS):
+        for s, (hour, minute, duration) in enumerate(SESSIONS):
+            idx += 1
 
-    for i, (day, hour, prog, master, cap, booked, status, reason) in enumerate(plan, start=1):
-        start = (base + timedelta(days=day)).replace(hour=hour)
-        slot_id = "s%d" % i
-        SLOTS[slot_id] = {
-            "id": slot_id,
-            "program_id": prog,
-            "master_id": master,
-            "start_time": start.isoformat(timespec="minutes"),
-            "duration_min": 135,           # ~2ч15м
-            "capacity": cap,
-            "booked_count": booked,
-            "status": status,
-            "cancel_reason": reason,
-            "rental_available": True,
-            "rental_price": RENTAL_PRICE,
-            "rental_stock": RENTAL_STOCK,
+            # Программа: 1-е занятие — круг, 2-е — лепка, 3-е чередуется по дню.
+            if s == 0:
+                prog = "wheel"
+            elif s == 1:
+                prog = "handbuilding"
+            else:
+                prog = "wheel" if day % 2 == 0 else "handbuilding"
+
+            if prog == "wheel":
+                master = WHEEL_MASTERS[(day + s) % len(WHEEL_MASTERS)]
+            else:
+                master = HAND_MASTERS[(day + s) % len(HAND_MASTERS)]
+
+            cap = PROGRAMS[prog]["max_capacity"]      # круг — 6, лепка — 10
+            # Детерминированная «живая» заполненность (никогда не равна cap).
+            booked = (day * 2 + s * 3) % (cap - 1)
+            status = STATUS_SCHEDULED
+            reason = None
+
+            spec = SPECIAL_SLOTS.get((day, s))
+            if spec:
+                if spec.get("full"):
+                    booked = cap
+                elif spec.get("almost"):
+                    booked = cap - 1
+                elif spec.get("empty"):
+                    booked = 0
+                if spec.get("status"):
+                    status = spec["status"]
+                    reason = spec.get("reason")
+
+            start = (base + timedelta(days=day)).replace(hour=hour, minute=minute)
+            # Прошедшие сегодняшние сеансы не сеем — расписание остаётся «живым».
+            if start < now:
+                continue
+
+            slot_id = "s%d" % idx
+            SLOTS[slot_id] = {
+                "id": slot_id,
+                "program_id": prog,
+                "master_id": master,
+                "start_time": start.isoformat(timespec="minutes"),
+                "duration_min": duration,
+                "capacity": cap,
+                "booked_count": booked,
+                "status": status,
+                "cancel_reason": reason,
+                "rental_available": True,
+                "rental_price": RENTAL_PRICE,
+                "rental_stock": RENTAL_STOCK,
+            }
+
+    # Демо-брони для экрана «Мои записи» (телефон +7 900 000-00-00) —
+    # привязываем к двум реальным будущим слотам, где ещё есть места.
+    future = sorted(SLOTS.values(), key=lambda sl: sl["start_time"])
+
+    def _pick(program_id, exclude=None):
+        for sl in future:
+            if (sl["status"] == STATUS_SCHEDULED
+                    and sl["program_id"] == program_id
+                    and sl["booked_count"] < sl["capacity"]
+                    and sl["id"] != exclude):
+                return sl
+        return None
+
+    demo_wheel = _pick("wheel")
+    demo_hand = _pick("handbuilding",
+                      exclude=demo_wheel["id"] if demo_wheel else None)
+
+    if demo_wheel:
+        demo_wheel["booked_count"] += 1
+        BOOKINGS["demo-wheel"] = {
+            "id": "demo-wheel", "slot_id": demo_wheel["id"],
+            "customer_name": "Демо Клиент", "customer_phone": "+7 900 000-00-00",
+            "rental": True, "status": BOOKING_CONFIRMED,
+            "created_at": now.isoformat(timespec="seconds"),
         }
-
-    # Демо-брони для экрана «Мои записи» (телефон +7 900 000-00-00).
-    # Уже учтены в booked_count слотов выше — счётчики не трогаем.
-    BOOKINGS["demo-wheel"] = {
-        "id": "demo-wheel", "slot_id": "s4",
-        "customer_name": "Демо Клиент", "customer_phone": "+7 900 000-00-00",
-        "rental": True, "status": BOOKING_CONFIRMED,
-        "created_at": now.isoformat(timespec="seconds"),
-    }
-    BOOKINGS["demo-kiln"] = {
-        "id": "demo-kiln", "slot_id": "s6",
-        "customer_name": "Демо Клиент", "customer_phone": "+7 900 000-00-00",
-        "rental": False, "status": BOOKING_CONFIRMED,
-        "created_at": now.isoformat(timespec="seconds"),
-    }
+    if demo_hand:
+        demo_hand["booked_count"] += 1
+        BOOKINGS["demo-hand"] = {
+            "id": "demo-hand", "slot_id": demo_hand["id"],
+            "customer_name": "Демо Клиент", "customer_phone": "+7 900 000-00-00",
+            "rental": False, "status": BOOKING_CONFIRMED,
+            "created_at": now.isoformat(timespec="seconds"),
+        }
 
 
 # --------------------------------------------------------------------------- #
@@ -225,8 +283,10 @@ def serialize_slot(slot):
 @app.after_request
 def add_cors_headers(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PATCH, OPTIONS"
+    # Authorization обязателен: без него браузер блокирует preflight запросов
+    # админки (Bearer-токен) ещё до отправки — расписание не загружается.
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     return response
 
 
@@ -451,7 +511,7 @@ def list_masters():
 # --------------------------------------------------------------------------- #
 #
 #  Учебная схема: пароли и токены в открытом виде in-memory. В реальной
-#  инфраструктуре аутентификация и админка уже существуют (R-028) — здесь
+#  инфраструктуре аутентификация и админка уже существует (R-028) — здесь
 #  добавлен минимальный слой, чтобы продемонстрировать роль владельца/админа
 #  из исходного письма Марины («экран, где я вижу всё расписание и могу
 #  что-то поправить руками»).
@@ -517,6 +577,8 @@ def me():
 def _admin_slot_view(slot):
     """Расширенное представление слота для админа — с составом брони."""
     view = serialize_slot(slot)
+    # id мастера нужны форме правки для предвыбора в выпадающем списке.
+    view["master_id"] = slot["master_id"]
     view["bookings"] = [
         {"id": b["id"], "customer_name": b["customer_name"],
          "customer_phone": b["customer_phone"], "rental": b["rental"],
@@ -571,7 +633,14 @@ def admin_restore_slot(slot_id):
 
 @app.route("/api/admin/slots/<slot_id>", methods=["PATCH"])
 def admin_update_slot(slot_id):
-    """Ручная правка вместимости слота (в пределах максимума программы)."""
+    """Ручная правка слота владельцем — «поправить, если что-то пошло не так».
+
+    Принимает любой набор полей (все опциональны):
+      * capacity     — число мест (в пределах максимума программы, не ниже брони);
+      * master_id    — заменить мастера (например, если исходный заболел);
+      * start_time   — перенести дату/время (ISO 8601, напр. 2026-07-10T15:00);
+      * duration_min — длительность в минутах (30–300).
+    """
     if not require_admin():
         return jsonify({"error": "forbidden"}), 403
     slot = SLOTS.get(slot_id)
@@ -579,6 +648,7 @@ def admin_update_slot(slot_id):
         return jsonify({"error": "slot not found"}), 404
 
     data = request.get_json(silent=True) or {}
+
     if "capacity" in data:
         try:
             capacity = int(data["capacity"])
@@ -593,6 +663,31 @@ def admin_update_slot(slot_id):
             return jsonify({"error": "capacity_above_max",
                             "message": "Максимум для этой программы — %d" % program_max}), 409
         slot["capacity"] = capacity
+
+    if "master_id" in data:
+        master_id = data["master_id"]
+        if master_id not in MASTERS:
+            return jsonify({"error": "invalid_master",
+                            "message": "Такого мастера нет"}), 400
+        slot["master_id"] = master_id
+
+    if "start_time" in data:
+        try:
+            new_start = datetime.fromisoformat(data["start_time"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "invalid_start_time",
+                            "message": "Некорректные дата/время"}), 400
+        slot["start_time"] = new_start.isoformat(timespec="minutes")
+
+    if "duration_min" in data:
+        try:
+            duration = int(data["duration_min"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "invalid duration"}), 400
+        if not 30 <= duration <= 300:
+            return jsonify({"error": "duration_out_of_range",
+                            "message": "Длительность — от 30 до 300 минут"}), 400
+        slot["duration_min"] = duration
 
     return jsonify({"slot": _admin_slot_view(slot),
                     "message": "Слот обновлён"})

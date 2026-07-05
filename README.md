@@ -14,15 +14,35 @@ frontend/   7 экранов на HTML/CSS/JS без фреймворков
 
 ## Запуск
 
+### Windows — одним кликом
+
+Двойной клик по файлу запускает сервер (окно консоли остаётся открытым, не закрывайте его):
+
+* `backend/run.bat` — поднимает API на http://127.0.0.1:5000
+* `frontend/run.bat` — поднимает статику на http://127.0.0.1:5500
+
+### Вручную (любая ОС)
+
 **Бэкенд:**
 ```bash
 cd backend
-pip install -r requirements.txt
 python api.py          # http://127.0.0.1:5000
 ```
 
 **Фронтенд:** открыть `frontend/index.html` в браузере
 (или `python -m http.server 5500` из папки `frontend`).
+
+> **Windows: команда `python`/`pip` не найдена или ничего не делает?**
+> На части систем Windows команда `python` в PATH — это заглушка Microsoft Store,
+> которая ничего не запускает. Используйте вместо неё **`py`** (стандартный
+> launcher из установки Python) и `py -m pip` вместо `pip`:
+> ```bash
+> cd backend
+> py api.py
+> ```
+> Постоянное решение: Параметры Windows → Приложения → Дополнительные параметры
+> приложений → Псевдонимы выполнения приложений → выключить `python.exe`/`python3.exe`,
+> либо переустановить Python с python.org с галочкой «Add python.exe to PATH».
 
 ## Экраны
 
@@ -40,7 +60,7 @@ python api.py          # http://127.0.0.1:5000
 
 | Логин | Пароль | Роль |
 |-------|--------|------|
-| `admin` | `admin123` | Владелец (админка) |
+| `admin` | `admin123`  | Владелец (панель администратора) |
 | `client` | `client123` | Клиент (демо-записи) |
 
 ## Бизнес-правила
@@ -58,12 +78,14 @@ python api.py          # http://127.0.0.1:5000
 
 ## Документация
 
-| Этап | Файл |
-|------|------|
-| Аналитика | [`docs/01-analytics.md`](docs/01-analytics.md) |
-| Проектирование | [`docs/02-design.md`](docs/02-design.md) |
-| Разработка | [`docs/03-development.md`](docs/03-development.md) |
-| Тестирование и багфикс | [`docs/04-testing-bugfix.md`](docs/04-testing-bugfix.md) |
-| Расширение и редизайн | [`docs/05-enhancements.md`](docs/05-enhancements.md) |
-| Аудит требований, админка, адаптив | [`docs/06-admin-auth.md`](docs/06-admin-auth.md) |
-| Полировка: дизайн-баги, чистка кода | [`docs/07-design-polish.md`](docs/07-design-polish.md) |
+Четыре документа по задачам брифа (AI-driven development):
+
+| Задача | Документ |
+|--------|----------|
+| 1. Аналитика: требования к MVP (User Stories + сценарии) | [`docs/01-requirements.md`](docs/01-requirements.md) |
+| 2. Проектирование: архитектура, схема данных, контракт API | [`docs/02-architecture.md`](docs/02-architecture.md) |
+| 3. Разработка: реализованные фичи | [`docs/03-features.md`](docs/03-features.md) |
+| 4. Тестирование и багфикс: тест-кейсы + все баги (#1–#10) | [`docs/04-testing-and-bugs.md`](docs/04-testing-and-bugs.md) |
+
+Исходные материалы: [`docs/brief-pottery.md`](docs/brief-pottery.md) (бриф заказчицы),
+[`docs/prompt.md`](docs/prompt.md) (спецификация задания).

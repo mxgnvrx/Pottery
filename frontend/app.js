@@ -60,7 +60,7 @@ function authHeaders() {
   return a ? { 'Authorization': 'Bearer ' + a.token } : {};
 }
 
-/** Дорисовывает в шапке ссылки входа/выхода и «Админку» для роли admin. */
+/** Дорисовывает в шапке ссылки входа/выхода и «Панель администратора» для роли admin. */
 function renderNav() {
   const nav = document.querySelector('.nav');
   if (!nav) return;
@@ -71,7 +71,7 @@ function renderNav() {
     const a = document.createElement('a');
     a.className = 'nav__link';
     a.href = 'admin.html';
-    a.textContent = 'Админка';
+    a.textContent = 'Панель администратора';
     if (document.body.dataset.page === 'admin') a.classList.add('nav__link--active');
     nav.appendChild(a);
   }
@@ -574,7 +574,10 @@ function initLogin() {
   });
 }
 
-/* ------------------------- экран 7: админка ------------------------------ */
+/* ------------------- экран 7: панель администратора ---------------------- */
+
+/* Список мастеров для выпадающего списка в форме правки слота. */
+let adminMasters = [];
 
 async function initAdmin() {
   const auth = getAuth();
@@ -583,6 +586,13 @@ async function initAdmin() {
     return;
   }
   document.getElementById('admin-user').textContent = auth.name;
+  try {
+    const res = await apiGet('/masters');
+    adminMasters = (await res.json()).masters || [];
+  } catch (e) {
+    adminMasters = [];
+    console.error(e);
+  }
   await loadAdminSlots();
 }
 
@@ -656,9 +666,11 @@ function renderAdminRow(slot) {
         ? `<span class="booking__reason">Отменено: ${slot.cancel_reason.toLowerCase()}</span>` : ''}
     </div>
     <div class="admin-row__actions"></div>
+    <div class="admin-row__edit"></div>
   `;
 
   const actions = row.querySelector('.admin-row__actions');
+  const editPanel = row.querySelector('.admin-row__edit');
 
   if (cancelled) {
     actions.appendChild(makeBtn('Вернуть в расписание', 'btn--ghost',
@@ -677,6 +689,8 @@ function renderAdminRow(slot) {
     stepper.append(minus, val, plus);
     actions.appendChild(stepper);
 
+    buildAdminEditForm(editPanel, slot);
+
     actions.appendChild(makeBtn('Отменить занятие', 'btn--danger', () => {
       const reason = prompt('Причина отмены (увидят клиенты):', 'Форс-мажор: сломалась печь');
       if (reason === null) return;
@@ -685,6 +699,45 @@ function renderAdminRow(slot) {
   }
 
   return row;
+}
+
+/* Инлайн-форма ручной правки слота: дата, время, мастер (R: «поправить руками»). */
+function buildAdminEditForm(panel, slot) {
+  const date = slot.start_time.slice(0, 10);   // YYYY-MM-DD
+  const time = slot.start_time.slice(11, 16);  // HH:MM
+
+  const options = adminMasters.length
+    ? adminMasters.map((m) =>
+        `<option value="${m.id}"${m.id === slot.master_id ? ' selected' : ''}>`
+        + `${m.name} · ${m.specialty}</option>`).join('')
+    : `<option value="${slot.master_id}" selected>${slot.master.name}</option>`;
+
+  panel.innerHTML = `
+    <span class="edit-title">Правка вручную:</span>
+    <label class="edit-field">
+      <span>Дата</span>
+      <input type="date" class="edit-date" value="${date}">
+    </label>
+    <label class="edit-field">
+      <span>Время</span>
+      <input type="time" class="edit-time" value="${time}">
+    </label>
+    <label class="edit-field edit-field--wide">
+      <span>Мастер</span>
+      <select class="edit-master">${options}</select>
+    </label>
+    <div class="edit-actions"></div>
+  `;
+
+  const editActions = panel.querySelector('.edit-actions');
+  editActions.appendChild(makeBtn('Сохранить', 'btn--primary', () => {
+    const d = panel.querySelector('.edit-date').value;
+    const t = panel.querySelector('.edit-time').value;
+    const master = panel.querySelector('.edit-master').value;
+    if (!d || !t) { showError('Укажите дату и время.'); return; }
+    adminAction(`/admin/slots/${slot.id}`, 'PATCH',
+      { start_time: `${d}T${t}`, master_id: master });
+  }));
 }
 
 function makeBtn(text, cls, handler) {

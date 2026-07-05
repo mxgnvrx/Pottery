@@ -1,6 +1,3 @@
-/* Гончарная мастерская «Глина» — дизайн-система клиентского приложения.
-   Тёплая «керамическая» палитра, Playfair Display + Manrope, mobile-first. */
-
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
 
 :root {
@@ -573,7 +570,7 @@ body {
 .demo-chip b { font-size: 0.95rem; }
 .demo-chip span { font-size: 0.82rem; color: var(--muted); font-family: monospace; }
 
-/* --------------------------- админка ------------------------------------- */
+/* -------------------- панель администратора ------------------------------ */
 
 .stats-row {
   display: flex;
@@ -638,6 +635,43 @@ body {
 .stepper__btn:hover { border-color: var(--terra); color: var(--terra-dark); }
 .stepper__val { min-width: 22px; text-align: center; font-weight: 800; }
 
+/* Инлайн-форма ручной правки слота (перенос времени, смена мастера). */
+.admin-row__edit {
+  margin-top: 12px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.edit-title {
+  width: 100%;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.edit-field { display: flex; flex-direction: column; gap: 4px; }
+.edit-field span { font-size: 0.82rem; color: var(--muted); font-weight: 600; }
+.edit-field input,
+.edit-field select {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.92rem;
+  font-family: inherit;
+}
+.edit-field input:focus,
+.edit-field select:focus {
+  outline: none;
+  border-color: var(--terra);
+}
+.edit-field--wide { flex: 1; min-width: 200px; }
+.edit-field--wide select { width: 100%; }
+.edit-actions { display: flex; gap: 8px; margin-left: auto; }
+
 /* --------------------------- футер ---------------------------------------- */
 
 .footer {
@@ -673,7 +707,7 @@ body {
     gap: 40px;
     padding: 40px 0 44px;
   }
-  .hero__badge { grid-column: 1; }
+  .hero__badge { grid-column: 1; justify-self: start; }
   .hero__title { grid-column: 1; }
   .hero__text { grid-column: 1; }
   .hero__stats {
