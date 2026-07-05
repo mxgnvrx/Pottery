@@ -7,7 +7,7 @@
 
 Клиент-серверное приложение из двух независимых частей:
 
-```
+```text
 ┌──────────────────────────┐        HTTP / JSON        ┌──────────────────────────┐
 │  Frontend (browser)      │  ───────────────────────▶ │  Backend REST API        │
 │  HTML / CSS / JS,        │  ◀─────────────────────── │  Python / Flask          │
@@ -42,14 +42,14 @@
 
 ### Program (программа занятия)
 
-| Поле         | Тип   | Пример / примечание           |                  |
-| ------       | ----- | ---------------------         |                  |
-| id           | str   | `"wheel"` \                   | `"handbuilding"` |
-| code         | str   | `WHEEL` \                     | `HANDBUILDING`   |
-| title        | str   | «Гончарный круг для новичков» |                  |
-| description  | str   | текст программы               |                  |
-| max_capacity | int   | **6** (круг) / **10** (лепка) |                  |
-| price        | int   | цена, ₽                       |                  |
+| Поле         | Тип | Пример / примечание                       |
+| ------------ | --- | ----------------------------------------- |
+| id           | str | `"wheel"` / `"handbuilding"`              |
+| code         | str | `WHEEL` / `HANDBUILDING`                  |
+| title        | str | «Гончарный круг для новичков»             |
+| description  | str | текст программы                           |
+| max_capacity | int | **6** (круг) / **10** (лепка)             |
+| price        | int | цена, ₽                                   |
 
 ### Master (мастер)
 
@@ -64,44 +64,44 @@
 
 ### Slot (слот расписания) — каноническая сущность
 
-| Поле             | Тип       | Примечание                                   |                        |
-| ------           | -----     | ------------                                 |                        |
-| id               | str       | `"s1"`                                       |                        |
-| program_id       | str       | → Program                                    |                        |
-| master_id        | str       | → Master                                     |                        |
-| start_time       | str (ISO) | `"2026-07-05T11:00"`                         |                        |
-| duration_min     | int       | 120–150 (2–2.5 ч)                            |                        |
-| capacity         | int       | вместимость слота (≤ max_capacity программы) |                        |
-| booked_count     | int       | сколько уже занято                           |                        |
-| status           | str       | `SCHEDULED` \                                | `CANCELLED_BY_STUDIO`  |
-| cancel_reason    | str \     | null                                         | причина отмены (R-008) |
-| rental_available | bool      | доступен ли прокат                           |                        |
-| rental_price     | int       | цена проката (без размеров)                  |                        |
-| rental_stock     | int       | свободный прокатный фонд (R-015)             |                        |
+| Поле             | Тип       | Примечание                                   |
+| ---------------- | --------- | -------------------------------------------- |
+| id               | str       | `"s1"`                                       |
+| program_id       | str       | → Program                                    |
+| master_id        | str       | → Master                                     |
+| start_time       | str (ISO) | `"2026-07-05T11:00"`                         |
+| duration_min     | int       | 120–150 (2–2.5 ч)                            |
+| capacity         | int       | вместимость слота (≤ max_capacity программы) |
+| booked_count     | int       | сколько уже занято                           |
+| status           | str       | `SCHEDULED` / `CANCELLED_BY_STUDIO`          |
+| cancel_reason    | str/null  | причина отмены (R-008)                       |
+| rental_available | bool      | доступен ли прокат                           |
+| rental_price     | int       | цена проката (без размеров)                  |
+| rental_stock     | int       | свободный прокатный фонд (R-015)             |
 
 Вычисляемые поля в ответе API: `remaining_places = capacity − booked_count`,
 `is_bookable = status == SCHEDULED AND remaining_places > 0`.
 
 ### Booking (бронь)
 
-| Поле           | Тип       | Примечание     |                       |
-| ------         | -----     | ------------   |                       |
-| id             | str       | генерируется   |                       |
-| slot_id        | str       | → Slot         |                       |
-| customer_name  | str       | обязательно    |                       |
-| customer_phone | str       | обязательно    |                       |
-| rental         | bool      | взял ли прокат |                       |
-| status         | str       | `CONFIRMED` \  | `CANCELLED_BY_CLIENT` |
-| created_at     | str (ISO) | момент брони   |                       |
+| Поле           | Тип       | Примечание                          |
+| -------------- | --------- | ----------------------------------- |
+| id             | str       | генерируется                        |
+| slot_id        | str       | → Slot                              |
+| customer_name  | str       | обязательно                         |
+| customer_phone | str       | обязательно                         |
+| rental         | bool      | взял ли прокат                      |
+| status         | str       | `CONFIRMED` / `CANCELLED_BY_CLIENT` |
+| created_at     | str (ISO) | момент брони                        |
 
 ### User / Token (аутентификация, учебная схема)
 
-| Поле        | Тип   | Примечание                         |            |
-| ------      | ----- | ------------                       |            |
-| login       | str   | `"admin"` \                        | `"client"` |
-| password    | str   | in-memory, открытым текстом (демо) |            |
-| role        | str   | `admin` \                          | `client`   |
-| name, phone | str   | профиль; телефон — у клиента       |            |
+| Поле        | Тип | Примечание                         |
+| ----------- | --- | ---------------------------------- |
+| login       | str | `"admin"` / `"client"`             |
+| password    | str | in-memory, открытым текстом (демо) |
+| role        | str | `admin` / `client`                 |
+| name, phone | str | профиль; телефон — у клиента       |
 
 Токены — словарь `token → login`, передаются в `Authorization: Bearer <token>`.
 
@@ -147,7 +147,7 @@
 | `POST /api/bookings`             | создать бронь                             | 201 / 400 / 404 / **409** |
 | `GET /api/bookings?phone=…`      | мои записи по телефону (норм. до 10 цифр) | 200 / 400                 |
 | `GET /api/bookings/{id}`         | одна бронь                                | 200 / 404                 |
-| `POST /api/bookings/{id}/cancel` | отмена клиентом (правило 2 ч)             | 200 / **409**             |
+| `POST /api/bookings/{id}/cancel` | отмена клиентом (правило 2 ч)             | 200 / **409** |
 
 `409` при бронировании: `no_places` (нет мест, R-004) **или** `slot_cancelled`
 (слот отменён, R-008). `409` при отмене: `late_cancellation` (< 2 ч),
@@ -178,7 +178,7 @@
 Критическая секция «проверить → изменить» выполняется под глобальным
 `threading.Lock`, чтобы два параллельных запроса не переполнили слот:
 
-```
+```python
 with _booking_lock:
     slot = SLOTS[slot_id]
     if slot.status == CANCELLED_BY_STUDIO:   # R-008
@@ -194,7 +194,7 @@ with _booking_lock:
 
 ## 5. Маршрут пользователя (frontend)
 
-```
+```text
 index.html ──выбор слота──▶ details.html ──POST /bookings 201──▶ success.html
    (GET /slots)               (GET /slots/{id})                    │
         │                                                          ▼
